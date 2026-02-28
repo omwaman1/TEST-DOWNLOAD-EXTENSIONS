@@ -95,7 +95,7 @@ function processOneTest(test) {
 
             const timeout = setTimeout(() => {
                 if (!settled) { settled = true; cleanup(); chrome.tabs.remove(tabId).catch(() => { }); resolve("timeout"); }
-            }, 60000);
+            }, 120000);
 
             function cleanup() {
                 clearTimeout(timeout);
@@ -166,7 +166,8 @@ async function run() {
         // Each worker keeps pulling from the queue until it's empty
         const workers = [];
         for (let i = 0; i < MAX_WORKERS; i++) {
-            workers.push(worker());
+            // Stagger each worker by 2s so they don't all sync up
+            workers.push(new Promise(resolve => setTimeout(() => worker().then(resolve), i * 2000)));
         }
 
         // Wait for all workers to finish

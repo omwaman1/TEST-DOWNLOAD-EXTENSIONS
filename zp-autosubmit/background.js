@@ -114,7 +114,10 @@ async function run() {
         testQueue = [...tests];
         broadcast("status", { text: `Starting ${MAX_WORKERS} workers for ${tests.length} tests...` });
         const workers = [];
-        for (let i = 0; i < MAX_WORKERS; i++) workers.push(worker());
+        for (let i = 0; i < MAX_WORKERS; i++) {
+            // Stagger each worker by 2 seconds so they don't all sync up
+            workers.push(new Promise(resolve => setTimeout(() => worker().then(resolve), i * 2000)));
+        }
         await Promise.all(workers);
         broadcast("status", { text: `✅ Done! Submitted: ${stats.submitted} | Skipped: ${stats.skipped} | Failed: ${stats.failed}` });
     } catch (err) { broadcast("status", { text: `Error: ${err.message}` }); }
