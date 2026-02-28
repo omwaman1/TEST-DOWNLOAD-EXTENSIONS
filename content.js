@@ -62,9 +62,20 @@
 
     function notifyWhenReady() {
         if (document.body) {
+            // If page shows "Overall Performance Summary", test already submitted
+            if (document.body.innerText.includes("Overall Performance Summary")) {
+                safeSendMessage({ type: "submitResult", result: "ok" });
+                return;
+            }
             safeSendMessage({ type: "pageReady" });
         } else {
-            document.addEventListener("DOMContentLoaded", () => safeSendMessage({ type: "pageReady" }));
+            document.addEventListener("DOMContentLoaded", () => {
+                if (document.body.innerText.includes("Overall Performance Summary")) {
+                    safeSendMessage({ type: "submitResult", result: "ok" });
+                    return;
+                }
+                safeSendMessage({ type: "pageReady" });
+            });
         }
     }
     setTimeout(notifyWhenReady, 1000 + Math.random() * 2000);
@@ -81,6 +92,13 @@
 
     async function autoSubmit(testId, title) {
         console.log("[AutoSubmit] Starting for:", title);
+
+        // Quick check — if already on result page
+        if (document.body && document.body.innerText.includes("Overall Performance Summary")) {
+            console.log("[AutoSubmit] Already submitted (Performance Summary found)");
+            safeSendMessage({ type: "submitResult", result: "ok" });
+            return;
+        }
 
         // STEP 1: Wait for "Start Test" / "Attempt" button — strict text matching
         console.log("[AutoSubmit] Step 1: Waiting for Start/Attempt button...");
