@@ -1,11 +1,7 @@
-// Content script — handles FULL test submission flow:
-// 1. Click "Start Test" / "Attempt" / "Continue" to enter the test
-// 2. Click "Submit Test" to trigger submission
-// 3. Click "Submit" in the confirmation popup
-// Extended timeouts for slow-loading pages
+// Content script — event-driven, no fixed delays
+// Uses MutationObserver to detect buttons as soon as they appear in DOM
 
 (function () {
-    // Safety check — chrome.runtime can become undefined after extension reload
     function safeSendMessage(msg) {
         try {
             if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
@@ -14,25 +10,57 @@
         } catch (e) { }
     }
 
-    function notifyReady() {
-        safeSendMessage({ type: "pageReady" });
+    // Wait for an element matching a condition to appear in the DOM
+    function waitForElement(matchFn, timeoutMs = 60000) {
+        return new Promise((resolve) => {
+            // Check if already exists
+            const existing = matchFn();
+            if (existing) { resolve(existing); return; }
+
+            let resolved = false;
+            const observer = new MutationObserver(() => {
+                if (resolved) return;
+                const el = matchFn();
+                if (el) {
+                    resolved = true;
+                    observer.disconnect();
+                    resolve(el);
+                }
+            });
+            observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+
+            // Timeout fallback
+            setTimeout(() => {
+                if (!resolved) { resolved = true; observer.disconnect(); resolve(null); }
+            }, timeoutMs);
+        });
     }
 
-    // Wait for page to fully load
-    if (document.readyState === "complete") {
-        setTimeout(notifyReady, 4000);
-    } else {
-        window.addEventListener("load", () => setTimeout(notifyReady, 4000));
-    }
-
-    // Also notify on URL changes (SPA navigation)
-    let lastUrl = location.href;
-    setInterval(() => {
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            setTimeout(notifyReady, 3000);
+    // Find a button by text content
+    function findButton(texts, exclude = []) {
+        const allBtns = document.querySelectorAll("button, a, div[role='button'], span[role='button']");
+        for (const btn of allBtns) {
+            const text = btn.textContent.trim().toLowerCase();
+            if (exclude.some(e => text.includes(e))) continue;
+            for (const target of texts) {
+                if (text === target || text.includes(target)) {
+                    return btn;
+                }
+            }
         }
-    }, 2000);
+        return null;
+    }
+
+    // Notify background as soon as page has a body
+    function notifyWhenReady() {
+        if (document.body) {
+            safeSendMessage({ type: "pageReady" });
+        } else {
+            document.addEventListener("DOMContentLoaded", () => safeSendMessage({ type: "pageReady" }));
+        }
+    }
+    // Small random delay so not all tabs fire at once
+    setTimeout(notifyWhenReady, 1000 + Math.random() * 2000);
 
     try {
         if (chrome && chrome.runtime && chrome.runtime.onMessage) {
@@ -44,111 +72,79 @@
         }
     } catch (e) { }
 
-    function waitMs(ms) {
-        return new Promise(r => setTimeout(r, ms));
-    }
-
-    // Click any button matching one of the given texts
-    function clickButton(texts, exclude = []) {
-        const allBtns = document.querySelectorAll("button, a, div[role='button'], span[role='button']");
-        for (const btn of allBtns) {
-            const text = btn.textContent.trim().toLowerCase();
-            // Skip excluded texts
-            if (exclude.some(e => text.includes(e))) continue;
-            // Check if any target text matches
-            for (const target of texts) {
-                if (text === target || text.includes(target)) {
-                    console.log("[AutoSubmit] Clicking:", text);
-                    btn.click();
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     async function autoSubmit(testId, title) {
         console.log("[AutoSubmit] Starting for:", title);
-        await waitMs(3000);
 
-        // STEP 1: Click "Start Test" / "Attempt" / "Continue" / "Resume"
-        // This enters the test interface
-        console.log("[AutoSubmit] Step 1: Looking for Start/Attempt button...");
-        for (let i = 0; i < 15; i++) {
-            const clicked = clickButton(
+        // STEP 1: Wait for "Start Test" / "Attempt" button to appear, then click it
+        console.log("[AutoSubmit] Step 1: Waiting for Start/Attempt button...");
+        const startBtn = await waitForElement(() =>
+            findButton(
                 ["start test", "attempt", "continue", "resume", "start", "reattempt", "re-attempt"],
                 ["close", "cancel", "back", "submit"]
-            );
-            if (clicked) {
-                console.log("[AutoSubmit] Clicked start button, waiting for test to load...");
-                await waitMs(8000); // Wait for test interface to load
-                break;
-            }
-            await waitMs(2000);
+            ), 30000
+        );
+
+        if (startBtn) {
+            console.log("[AutoSubmit] Clicking start:", startBtn.textContent.trim());
+            startBtn.click();
+        } else {
+            console.log("[AutoSubmit] No start button found, maybe already in test");
         }
 
-        // STEP 2: Click "Submit Test"
-        console.log("[AutoSubmit] Step 2: Looking for Submit Test button...");
-        let submitted = false;
-        for (let i = 0; i < 20 && !submitted; i++) {
-            const clicked = clickButton(
-                ["submit test"],
-                ["close", "cancel", "back"]
-            );
-            if (clicked) {
-                console.log("[AutoSubmit] Clicked Submit Test, waiting for popup...");
-                await waitMs(3000);
+        // STEP 2: Wait for "Submit Test" button to appear, then click it
+        console.log("[AutoSubmit] Step 2: Waiting for Submit Test button...");
+        const submitTestBtn = await waitForElement(() =>
+            findButton(["submit test"], ["close", "cancel", "back"]),
+            45000
+        );
 
-                // STEP 3: Click confirmation "Submit" in popup
-                console.log("[AutoSubmit] Step 3: Looking for confirmation Submit...");
-                for (let j = 0; j < 10; j++) {
-                    // Look for a "Submit" button that is NOT "Submit Test"
-                    const allBtns = document.querySelectorAll("button");
-                    for (const btn of allBtns) {
-                        const text = btn.textContent.trim().toLowerCase();
-                        if (text === "submit") {
-                            console.log("[AutoSubmit] Clicking confirmation Submit");
-                            btn.click();
-                            submitted = true;
-                            break;
-                        }
-                    }
-                    if (submitted) break;
-
-                    // Also check inside modals/overlays
-                    const modals = document.querySelectorAll("[class*='modal'], [class*='Modal'], [class*='dialog'], [class*='Dialog'], [class*='popup'], [class*='overlay'], [role='dialog']");
-                    for (const modal of modals) {
-                        const btns = modal.querySelectorAll("button");
-                        for (const btn of btns) {
-                            const text = btn.textContent.trim().toLowerCase();
-                            if ((text === "submit" || text.includes("submit")) && !text.includes("close") && !text.includes("cancel")) {
-                                console.log("[AutoSubmit] Clicking modal submit:", text);
-                                btn.click();
-                                submitted = true;
-                                break;
-                            }
-                        }
-                        if (submitted) break;
-                    }
-                    if (submitted) break;
-                    await waitMs(1500);
-                }
-                break; // Exit the Submit Test loop
-            }
-
-            // Check if we're already on a result/analysis page
+        if (!submitTestBtn) {
+            // Check if we're on result page already
             if (location.href.includes("analysis") || location.href.includes("solutions") || location.href.includes("result")) {
-                submitted = true;
-                break;
+                console.log("[AutoSubmit] Already on result page");
+                safeSendMessage({ type: "submitResult", result: "ok" });
+                return;
             }
-
-            await waitMs(2000);
+            console.log("[AutoSubmit] Submit Test button not found");
+            safeSendMessage({ type: "submitResult", result: "failed" });
+            return;
         }
 
-        await waitMs(3000);
+        console.log("[AutoSubmit] Clicking Submit Test");
+        submitTestBtn.click();
 
-        const result = submitted ? "ok" : "failed";
-        console.log("[AutoSubmit] Result:", result, "for:", title);
-        safeSendMessage({ type: "submitResult", result });
+        // STEP 3: Wait for confirmation "Submit" button in popup
+        console.log("[AutoSubmit] Step 3: Waiting for confirmation popup...");
+        const confirmBtn = await waitForElement(() => {
+            // Look for a button with exactly "Submit" text (not "Submit Test")
+            const allBtns = document.querySelectorAll("button");
+            for (const btn of allBtns) {
+                const text = btn.textContent.trim().toLowerCase();
+                if (text === "submit") return btn;
+            }
+            // Also check modals
+            const modals = document.querySelectorAll("[class*='modal'], [class*='Modal'], [class*='dialog'], [class*='Dialog'], [class*='popup'], [class*='overlay'], [role='dialog']");
+            for (const modal of modals) {
+                const btns = modal.querySelectorAll("button");
+                for (const btn of btns) {
+                    const text = btn.textContent.trim().toLowerCase();
+                    if ((text === "submit" || text.includes("submit")) && !text.includes("close") && !text.includes("cancel") && !text.includes("test")) {
+                        return btn;
+                    }
+                }
+            }
+            return null;
+        }, 15000);
+
+        if (confirmBtn) {
+            console.log("[AutoSubmit] Clicking confirmation Submit");
+            confirmBtn.click();
+            // Wait briefly for navigation
+            await new Promise(r => setTimeout(r, 2000));
+            safeSendMessage({ type: "submitResult", result: "ok" });
+        } else {
+            console.log("[AutoSubmit] Confirmation button not found");
+            safeSendMessage({ type: "submitResult", result: "failed" });
+        }
     }
 })();
