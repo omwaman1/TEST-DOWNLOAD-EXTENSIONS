@@ -1,0 +1,34 @@
+{
+    "manifest_version": 3,
+    "name": "Testbook Auto Submit",
+    "version": "1.0",
+    "description": "Auto-submit blank tests for Testbook test series",
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "storage"
+    ],
+    "host_permissions": [
+        "https://testbook.com/*",
+        "https://api.testbook.com/*",
+        "https://api-new.testbook.com/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": "icon.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://testbook.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "background": {
+        "service_worker": "background.js"
+    }
+}
