@@ -1,7 +1,15 @@
 // Content script — event-driven, no fixed delays
 // Uses MutationObserver to detect buttons as soon as they appear in DOM
+// Only acts on test pages, ignores superpass/payment/analysis pages
 
 (function () {
+    // SKIP non-test pages entirely
+    const url = location.href.toLowerCase();
+    if (url.includes("superpass") || url.includes("payment") || url.includes("pricing") ||
+        url.includes("analysis") || url.includes("solutions") || url.includes("result")) {
+        return; // Don't run on these pages at all
+    }
+
     function safeSendMessage(msg) {
         try {
             if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
@@ -13,7 +21,6 @@
     // Wait for an element matching a condition to appear in the DOM
     function waitForElement(matchFn, timeoutMs = 60000) {
         return new Promise((resolve) => {
-            // Check if already exists
             const existing = matchFn();
             if (existing) { resolve(existing); return; }
 
@@ -29,18 +36,20 @@
             });
             observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
 
-            // Timeout fallback
             setTimeout(() => {
                 if (!resolved) { resolved = true; observer.disconnect(); resolve(null); }
             }, timeoutMs);
         });
     }
 
-    // Find a button by text content
+    // Find a button by text content — strict matching
     function findButton(texts, exclude = []) {
         const allBtns = document.querySelectorAll("button, a, div[role='button'], span[role='button']");
         for (const btn of allBtns) {
             const text = btn.textContent.trim().toLowerCase();
+            // Skip buttons that link to superpass/payment
+            const href = btn.getAttribute("href") || "";
+            if (href.includes("superpass") || href.includes("payment")) continue;
             if (exclude.some(e => text.includes(e))) continue;
             for (const target of texts) {
                 if (text === target || text.includes(target)) {
@@ -51,7 +60,6 @@
         return null;
     }
 
-    // Notify background as soon as page has a body
     function notifyWhenReady() {
         if (document.body) {
             safeSendMessage({ type: "pageReady" });
@@ -59,7 +67,6 @@
             document.addEventListener("DOMContentLoaded", () => safeSendMessage({ type: "pageReady" }));
         }
     }
-    // Small random delay so not all tabs fire at once
     setTimeout(notifyWhenReady, 1000 + Math.random() * 2000);
 
     try {
@@ -75,12 +82,12 @@
     async function autoSubmit(testId, title) {
         console.log("[AutoSubmit] Starting for:", title);
 
-        // STEP 1: Wait for "Start Test" / "Attempt" button to appear, then click it
+        // STEP 1: Wait for "Start Test" / "Attempt" button — strict text matching
         console.log("[AutoSubmit] Step 1: Waiting for Start/Attempt button...");
         const startBtn = await waitForElement(() =>
             findButton(
-                ["start test", "attempt", "continue", "resume", "start", "reattempt", "re-attempt"],
-                ["close", "cancel", "back", "submit"]
+                ["start test", "attempt", "continue test", "resume test", "reattempt", "re-attempt"],
+                ["close", "cancel", "back", "submit", "superpass", "buy", "subscribe", "unlock", "upgrade", "prep", "explore"]
             ), 30000
         );
 
@@ -91,7 +98,7 @@
             console.log("[AutoSubmit] No start button found, maybe already in test");
         }
 
-        // STEP 2: Wait for "Submit Test" button to appear, then click it
+        // STEP 2: Wait for "Submit Test" button
         console.log("[AutoSubmit] Step 2: Waiting for Submit Test button...");
         const submitTestBtn = await waitForElement(() =>
             findButton(["submit test"], ["close", "cancel", "back"]),
@@ -99,7 +106,6 @@
         );
 
         if (!submitTestBtn) {
-            // Check if we're on result page already
             if (location.href.includes("analysis") || location.href.includes("solutions") || location.href.includes("result")) {
                 console.log("[AutoSubmit] Already on result page");
                 safeSendMessage({ type: "submitResult", result: "ok" });
@@ -113,16 +119,14 @@
         console.log("[AutoSubmit] Clicking Submit Test");
         submitTestBtn.click();
 
-        // STEP 3: Wait for confirmation "Submit" button in popup
+        // STEP 3: Wait for confirmation "Submit" in popup
         console.log("[AutoSubmit] Step 3: Waiting for confirmation popup...");
         const confirmBtn = await waitForElement(() => {
-            // Look for a button with exactly "Submit" text (not "Submit Test")
             const allBtns = document.querySelectorAll("button");
             for (const btn of allBtns) {
                 const text = btn.textContent.trim().toLowerCase();
                 if (text === "submit") return btn;
             }
-            // Also check modals
             const modals = document.querySelectorAll("[class*='modal'], [class*='Modal'], [class*='dialog'], [class*='Dialog'], [class*='popup'], [class*='overlay'], [role='dialog']");
             for (const modal of modals) {
                 const btns = modal.querySelectorAll("button");
@@ -139,7 +143,6 @@
         if (confirmBtn) {
             console.log("[AutoSubmit] Clicking confirmation Submit");
             confirmBtn.click();
-            // Wait briefly for navigation
             await new Promise(r => setTimeout(r, 2000));
             safeSendMessage({ type: "submitResult", result: "ok" });
         } else {
