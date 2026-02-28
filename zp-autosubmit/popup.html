@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 400px;
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 16px;
+            color: #a29bfe;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .info {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        #status {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            min-height: 60px;
+            max-height: 200px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .progress-bar {
+            background: #16213e;
+            border-radius: 6px;
+            height: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 6px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: white;
+        }
+
+        #startBtn:hover {
+            background: linear-gradient(135deg, #5a4bd1, #9184f0);
+        }
+
+        #startBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #stopBtn {
+            background: #e74c3c;
+            color: white;
+            display: none;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #aaa;
+            padding: 4px 0;
+        }
+
+        .stat span:last-child {
+            color: #6c5ce7;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>⚡ Testbook Auto Submit</h1>
+    <div class="info">Auto-submits blank tests to unlock answers</div>
+
+    <div id="status">Ready. Click Start to begin auto-submitting all un-attempted tests.</div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="stat"><span>Total Tests:</span><span id="totalTests">—</span></div>
+    <div class="stat"><span>Submitted:</span><span id="submitted">0</span></div>
+    <div class="stat"><span>Already Done:</span><span id="skipped">0</span></div>
+    <div class="stat"><span>Failed:</span><span id="failed">0</span></div>
+
+    <br>
+    <button id="startBtn">▶ Start Auto-Submit</button>
+    <button id="stopBtn">⬛ Stop</button>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
