@@ -1,15 +1,17 @@
 // Content script — runs on testbook.com pages
 // Finds and clicks Submit button, then confirms the popup
+// Extended timeouts for slow-loading pages
 
 (function () {
     function notifyReady() {
         chrome.runtime.sendMessage({ type: "pageReady" }).catch(() => { });
     }
 
+    // Wait longer for page to fully load (5 seconds after load)
     if (document.readyState === "complete") {
-        setTimeout(notifyReady, 2000);
+        setTimeout(notifyReady, 5000);
     } else {
-        window.addEventListener("load", () => setTimeout(notifyReady, 2000));
+        window.addEventListener("load", () => setTimeout(notifyReady, 5000));
     }
 
     chrome.runtime.onMessage.addListener((msg) => {
@@ -22,13 +24,11 @@
         return new Promise(r => setTimeout(r, ms));
     }
 
-    // Find a button by its visible text
     function findButtonByText(searchText, container = document) {
         const allClickable = container.querySelectorAll("button, a, div[role='button'], span[role='button']");
         for (const el of allClickable) {
             const text = el.textContent.trim().toLowerCase();
             if (text === searchText.toLowerCase() || text.includes(searchText.toLowerCase())) {
-                // Make sure it's not the "Close" or "Cancel" button
                 if (text.includes("close") || text.includes("cancel")) continue;
                 return el;
             }
@@ -38,31 +38,29 @@
 
     async function autoSubmit(testId, title) {
         console.log("[AutoSubmit] Starting for:", title);
-        await waitMs(3000); // Wait for test page to fully render
+
+        // Wait longer for test page to fully render
+        await waitMs(8000);
 
         let submitted = false;
 
-        for (let attempt = 0; attempt < 15 && !submitted; attempt++) {
-            await waitMs(1500);
+        // STEP 1: Find and click "Submit Test" — more attempts, longer waits
+        for (let attempt = 0; attempt < 20 && !submitted; attempt++) {
+            await waitMs(3000);
 
-            // STEP 1: Find and click the main "Submit Test" button
             const submitBtn = findButtonByText("Submit Test") || findButtonByText("submit");
             if (submitBtn) {
                 console.log("[AutoSubmit] Clicking main Submit button");
                 submitBtn.click();
-                await waitMs(2000);
+                await waitMs(3000);
 
-                // STEP 2: Handle the confirmation popup
-                // The popup shows "Submit your test" with Close and Submit buttons
-                for (let popupAttempt = 0; popupAttempt < 8; popupAttempt++) {
-                    await waitMs(1000);
+                // STEP 2: Handle confirmation popup
+                for (let popupAttempt = 0; popupAttempt < 10; popupAttempt++) {
+                    await waitMs(1500);
 
-                    // Look for the popup Submit button (distinct from the main one)
-                    // The popup has a table with section info and two buttons: Close, Submit
                     const allButtons = document.querySelectorAll("button");
                     for (const btn of allButtons) {
                         const text = btn.textContent.trim().toLowerCase();
-                        // Find "Submit" button that is NOT "Submit Test" (the popup button is just "Submit")
                         if (text === "submit") {
                             console.log("[AutoSubmit] Clicking popup Submit button");
                             btn.click();
@@ -72,15 +70,15 @@
                     }
                     if (submitted) break;
 
-                    // Also try looking inside modals/overlays
-                    const overlays = document.querySelectorAll("[class*='modal'], [class*='dialog'], [class*='popup'], [class*='overlay'], [class*='Modal'], [class*='Dialog']");
+                    // Also check inside modals
+                    const overlays = document.querySelectorAll("[class*='modal'], [class*='dialog'], [class*='popup'], [class*='overlay'], [class*='Modal']");
                     for (const overlay of overlays) {
                         const btns = overlay.querySelectorAll("button");
                         for (const btn of btns) {
                             const text = btn.textContent.trim().toLowerCase();
                             if (text === "submit" || text.includes("submit")) {
                                 if (text.includes("close") || text.includes("cancel")) continue;
-                                console.log("[AutoSubmit] Clicking overlay Submit button:", text);
+                                console.log("[AutoSubmit] Clicking overlay Submit:", text);
                                 btn.click();
                                 submitted = true;
                                 break;
@@ -91,7 +89,7 @@
                 }
             }
 
-            // Check if we're already on the result page (maybe auto-submitted)
+            // Check if we landed on result page
             if (!submitted && (
                 window.location.href.includes("analysis") ||
                 window.location.href.includes("solutions") ||
@@ -101,8 +99,8 @@
             }
         }
 
-        // Wait for result page to load
-        await waitMs(3000);
+        // Wait for result page
+        await waitMs(5000);
 
         const result = submitted ? "ok" : "failed";
         console.log("[AutoSubmit] Result:", result, "for:", title);

@@ -78,7 +78,7 @@ function processOneTest(test) {
         chrome.tabs.create({ url, active: false }, (tab) => {
             const tabId = tab.id;
             let settled = false;
-            const timeout = setTimeout(() => { if (!settled) { settled = true; cleanup(); chrome.tabs.remove(tabId).catch(() => { }); resolve("timeout"); } }, 60000);
+            const timeout = setTimeout(() => { if (!settled) { settled = true; cleanup(); chrome.tabs.remove(tabId).catch(() => { }); resolve("timeout"); } }, 120000);
             function cleanup() { clearTimeout(timeout); chrome.runtime.onMessage.removeListener(handler); }
             function handler(msg, sender) {
                 if (sender.tab?.id !== tabId) return;
