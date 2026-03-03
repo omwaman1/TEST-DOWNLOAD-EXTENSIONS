@@ -1,0 +1,43 @@
+{
+    "manifest_version": 3,
+    "name": "मराठी PDF वाचक - Marathi PDF Reader",
+    "version": "1.0.0",
+    "description": "Read Marathi PDFs aloud with realistic voice directly from your browser tab.",
+    "permissions": [
+        "sidePanel",
+        "activeTab",
+        "tabs"
+    ],
+    "host_permissions": [
+        "<all_urls>",
+        "file:///*"
+    ],
+    "side_panel": {
+        "default_path": "sidepanel.html"
+    },
+    "action": {
+        "default_title": "Open Marathi PDF Reader",
+        "default_icon": {
+            "128": "icons/icon128.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>",
+                "file:///*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle",
+            "all_frames": false
+        }
+    ],
+    "icons": {
+        "128": "icons/icon128.png"
+    }
+}

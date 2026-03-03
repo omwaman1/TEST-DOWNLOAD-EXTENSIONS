@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="mr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>मराठी PDF वाचक</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-icon">📖</div>
+            <div class="header-text">
+                <h1>मराठी PDF वाचक</h1>
+                <p class="header-subtitle">Marathi PDF Reader</p>
+            </div>
+            <button class="btn-refresh" id="btnRefresh" title="पुन्हा शोधा (Refresh)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- No PDF State -->
+        <div class="no-pdf-section" id="noPdfSection">
+            <div class="no-pdf-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                </svg>
+            </div>
+            <p class="no-pdf-text">ब्राउझरमध्ये PDF उघडा</p>
+            <p class="no-pdf-hint">PDF टॅबवर जा आणि 🔄 बटण दाबा</p>
+            <p class="no-pdf-note" id="noPdfNote"></p>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading-section" id="loadingSection" style="display:none;">
+            <div class="spinner"></div>
+            <p class="loading-text" id="loadingText">PDF लोड होत आहे...</p>
+        </div>
+
+        <!-- ===== LOADED STATE ===== -->
+
+        <!-- PDF Info Bar -->
+        <div class="pdf-info" id="pdfInfo" style="display:none;">
+            <div class="pdf-info-left">
+                <span class="pdf-icon">📄</span>
+                <div class="pdf-details">
+                    <span class="pdf-name" id="pdfName"></span>
+                    <span class="pdf-pages" id="pdfPages"></span>
+                </div>
+            </div>
+            <div class="pdf-info-right">
+                <label class="page-jump-label">पान:</label>
+                <input type="number" class="page-jump-input" id="pageJumpInput" min="1" value="1">
+                <button class="btn-page-go" id="btnPageGo" title="या पानावर जा">⏎</button>
+            </div>
+        </div>
+
+        <!-- Read From Selection Button -->
+        <div class="selection-bar" id="selectionBar" style="display:none;">
+            <button class="btn-read-selection" id="btnReadSelection" title="PDF मधून निवडलेल्या मजकुरापासून वाचा">
+                📍 निवडलेल्या ठिकाणापासून वाचा (Read from selection)
+            </button>
+        </div>
+
+        <!-- NOW READING - Compact Teleprompter -->
+        <div class="now-reading" id="nowReading" style="display:none;">
+            <div class="now-reading-label">
+                <span id="pageIndicator">पान 1</span>
+                <span id="sentenceIndicator">0 / 0</span>
+            </div>
+            <div class="teleprompter">
+                <div class="tele-prev" id="telePrev"></div>
+                <div class="tele-current" id="teleCurrent">▶ दाबून वाचन सुरू करा</div>
+                <div class="tele-next" id="teleNext"></div>
+            </div>
+        </div>
+
+        <!-- Waveform -->
+        <div class="waveform" id="waveform" style="display:none;">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+        </div>
+
+        <!-- Player Controls (always visible) -->
+        <div class="player-controls" id="playerControls" style="display:none;">
+            <!-- Progress -->
+            <div class="progress-section">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-labels">
+                    <span id="progressCurrent">0:00</span>
+                    <span id="progressTotal">0:00</span>
+                </div>
+            </div>
+
+            <!-- Main Controls -->
+            <div class="main-controls">
+                <button class="btn-skip" id="btnSkipBack" title="10 सेकंद मागे (←)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                    </svg>
+                    <span class="skip-label">10s</span>
+                </button>
+
+                <button class="btn-play-main" id="btnPlay" title="वाचा / थांबा (Space)">
+                    <svg class="icon-play" id="iconPlay" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                    </svg>
+                    <svg class="icon-pause" id="iconPause" width="28" height="28" viewBox="0 0 24 24"
+                        fill="currentColor" style="display:none;">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
+                </button>
+
+                <button class="btn-stop" id="btnStop" title="थांबवा (Esc)">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 6h12v12H6z" />
+                    </svg>
+                </button>
+
+                <button class="btn-skip" id="btnSkipForward" title="10 सेकंद पुढे (→)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+                    </svg>
+                    <span class="skip-label">10s</span>
+                </button>
+            </div>
+
+            <!-- Speed -->
+            <div class="speed-section">
+                <div class="speed-header">
+                    <span class="speed-label">वेग (Speed)</span>
+                    <span class="speed-value" id="speedValue">1.0x</span>
+                </div>
+                <input type="range" class="speed-slider" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+                <div class="speed-marks">
+                    <span>0.5x</span><span>1.0x</span><span>1.5x</span><span>2.0x</span>
+                </div>
+            </div>
+
+            <!-- Voice -->
+            <div class="voice-section">
+                <label class="voice-label">आवाज (Voice)</label>
+                <div class="select-wrapper">
+                    <select id="voiceSelect" class="voice-select">
+                        <option value="">आवाज लोड होत आहे...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar" id="statusBar">
+            <span class="status-text" id="statusText">PDF शोधत आहे...</span>
+        </div>
+    </div>
+
+    <script src="lib/pdf.min.js"></script>
+    <script src="sidepanel.js"></script>
+</body>
+
+</html>
